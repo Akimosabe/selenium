@@ -179,4 +179,42 @@ public class Tests
             Assert.That(driver.FindElements(By.CssSelector("[data-tid='FileName']")).Count, Is.EqualTo(0),
                 "Файл не был удалён со страницы");
         } 
+
+        [Test]
+        public void CreateCommunity() //для честности еще один дополнительый тест
+        {
+            Auth();
+            NewsWaiter();
+            driver.Navigate().GoToUrl(StaffUrl + "/communities");
+
+            var createButton = wait.Until(ExpectedConditions.ElementToBeClickable(
+                By.XPath("//button[contains(., 'СОЗДАТЬ')]")));
+            ((IJavaScriptExecutor)driver).ExecuteScript("arguments[0].click();", createButton);
+
+            var nameInput = wait.Until(ExpectedConditions.ElementIsVisible(
+                By.CssSelector("textarea[placeholder='Название сообщества']")));
+            nameInput.SendKeys("Клуб любителей автотестирования");
+
+            var descInput = driver.FindElement(
+                By.CssSelector("textarea[placeholder='Описание сообщества']"));
+            descInput.SendKeys("Heh");
+
+            var confirmCreate = wait.Until(ExpectedConditions.ElementToBeClickable(
+                By.XPath("//button[.//span[text()='Создать']]")));
+            confirmCreate.Click();
+
+            var title = wait.Until(ExpectedConditions.ElementIsVisible(
+                By.CssSelector("[data-tid='Name']")));
+            Assert.That(title.Text, Does.Contain("Клуб любителей автотестирования"),
+                "Название сообщества в заголовке не совпадает с введённым");
+
+            // чистка за собой
+            var deleteButton = wait.Until(ExpectedConditions.ElementToBeClickable(
+                By.CssSelector("[data-tid='DeleteButton']")));
+            deleteButton.Click();
+
+            var confirmDelete = wait.Until(ExpectedConditions.ElementToBeClickable(
+                By.XPath("//button[.//span[text()='Удалить']]")));
+            confirmDelete.Click();
+        }
 }
