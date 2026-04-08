@@ -80,7 +80,6 @@ public class Tests
         logoutButton.Click();
         wait.Until(ExpectedConditions.UrlContains("/Account/Logout"));
         Assert.That(driver.Url, Does.Contain("/Account/Logout"), "После выхода не произошёл редирект на /Account/Logout");
-        
     }
     
     [Test]
@@ -98,12 +97,10 @@ public class Tests
 
         Auth();
         NewsWaiter();
-        
-
         var searchBar = wait.Until(ExpectedConditions.ElementToBeClickable(
             By.CssSelector("[data-tid='SearchBar']")));
         searchBar.Click();
-        
+
         var searchInput = wait.Until(ExpectedConditions.ElementExists(
             By.CssSelector("[data-tid='SearchBar'] input")));
         var (username, _) = LoadSecrets();
@@ -119,7 +116,6 @@ public class Tests
     {
         Auth();
         NewsWaiter();
-        
         driver.Navigate().GoToUrl(StaffUrl + "/files");
         
         var addButton = wait.Until(ExpectedConditions.ElementToBeClickable(
