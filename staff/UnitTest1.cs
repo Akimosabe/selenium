@@ -113,5 +113,33 @@ public class Tests
         Assert.That(suggestion.Displayed, Is.True,
             "После ввода не появилась подсказка с сотрудником");
     }
-    
+    [Test]
+    public void UploadFile()
+    {
+        Auth();
+        NewsWaiter();
+        
+        driver.Navigate().GoToUrl(StaffUrl + "/files");
+        
+        var addButton = wait.Until(ExpectedConditions.ElementToBeClickable(
+            By.XPath("//button[.//span[text()='Добавить']]"))); //нет data-tid
+        addButton.Click();
+        
+        // пришлось вспоминать показанный на занятии по devtools js-код и писать его в консоли браузера, чтобы проинспектировать элемент:
+        // setTimeout(() => { debugger; }, 3000)
+
+        var fileMenuItem = wait.Until(ExpectedConditions.ElementToBeClickable(
+            By.XPath("//*[text()='Файл']")));
+        fileMenuItem.Click();
+        
+                var fileInput = wait.Until(ExpectedConditions.ElementExists(
+            By.CssSelector("input[type='file']")));
+        var filePath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, @"..\..\..\media\test_cow.jpg"));
+        fileInput.SendKeys(filePath);
+        
+        var uploadedFile = wait.Until(ExpectedConditions.ElementIsVisible(
+            By.XPath("//*[contains(text(),'test_cow')]")));
+        Assert.That(uploadedFile.Displayed, Is.True,
+            "Загруженный файл не появился в списке файлов");
+    }
 }
