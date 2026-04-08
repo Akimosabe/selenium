@@ -3,6 +3,7 @@ using OpenQA.Selenium.Chrome;
 using OpenQA.Selenium.Support.UI;
 using SeleniumExtras.WaitHelpers;
 using System.Text.Json;
+using OpenQA.Selenium.Interactions;
 
 namespace Stafftests;
 
@@ -132,14 +133,50 @@ public class Tests
             By.XPath("//*[text()='Файл']")));
         fileMenuItem.Click();
         
-                var fileInput = wait.Until(ExpectedConditions.ElementExists(
+        var fileInput = wait.Until(ExpectedConditions.ElementExists(
             By.CssSelector("input[type='file']")));
         var filePath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, @"..\..\..\media\test_cow.jpg"));
         fileInput.SendKeys(filePath);
-        
+
+        var modalClose = wait.Until(ExpectedConditions.ElementToBeClickable(
+            By.CssSelector("[data-tid='modal-close']")));
+        modalClose.Click();
+
         var uploadedFile = wait.Until(ExpectedConditions.ElementIsVisible(
-            By.XPath("//*[contains(text(),'test_cow')]")));
-        Assert.That(uploadedFile.Displayed, Is.True,
+            By.CssSelector("[data-tid='FileName']")));
+        Assert.That(uploadedFile.Text, Does.Contain("test_cow"),
             "Загруженный файл не появился в списке файлов");
     }
+    [Test]
+        public void DeleteFile()
+        {
+            Auth();
+            NewsWaiter();
+            
+            driver.Navigate().GoToUrl(StaffUrl + "/files");
+
+            // изначально предполагалось, что этот тест будет в UploadFile подчищать за собой, чтобы каждый тест был независимым 
+            // но все портит открывающийся проводник, от которого можно избавиться только с помощью AutoIt (как я нагуглил)
+            // поэтому разделил на два теста из соображения что удаление будет запускаться после добавления
+
+            var menuButtons = wait.Until(driver => 
+            {
+                var els = driver.FindElements(By.CssSelector("[data-tid='PopupMenu__caption'] button"));
+                return els.Count >= 2 ? els : null; // решение тоже шапочное, на странице два PopupMenu__caption, первый у папки, второй у файла поэтому берём второй элемент по индексу [1], это лучше чем class="sc-kLojOw gkKHtQ"
+            });
+            new Actions(driver).MoveToElement(menuButtons[1]).Click().Perform();
+
+            var deleteFile = wait.Until(ExpectedConditions.ElementToBeClickable(
+                By.CssSelector("[data-tid='DeleteFile']")));
+            deleteFile.Click();
+
+            var confirmDelete = wait.Until(ExpectedConditions.ElementToBeClickable(
+                By.XPath("//button[.//span[text()='Удалить']]")));
+            confirmDelete.Click();
+
+            wait.Until(ExpectedConditions.InvisibilityOfElementLocated(
+                By.CssSelector("[data-tid='FileName']")));
+            Assert.That(driver.FindElements(By.CssSelector("[data-tid='FileName']")).Count, Is.EqualTo(0),
+                "Файл не был удалён со страницы");
+        } 
 }
