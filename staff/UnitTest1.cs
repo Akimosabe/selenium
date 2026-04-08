@@ -3,15 +3,14 @@ using OpenQA.Selenium.Chrome;
 using OpenQA.Selenium.Support.UI;
 using SeleniumExtras.WaitHelpers;
 using System.Text.Json;
-using System.Linq;
 
 namespace Stafftests;
 
 public class Tests
 {
-    private IWebDriver _driver;
-    private WebDriverWait _wait;
-    private const string BaseUrl = "https://staff-testing.testkontur.ru";
+    private IWebDriver driver;
+    private WebDriverWait wait;
+    private const string StaffUrl = "https://staff-testing.testkontur.ru";
     private (string user, string pass) LoadSecrets() // Не добавляю в гитигнор, чтобы показать куда прячу секреты
     {
         var path = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, @"..\..\..\secret.json"));
@@ -19,38 +18,42 @@ public class Tests
         var data = JsonSerializer.Deserialize<Dictionary<string, string>>(json);
         return (data["user"], data["pass"]);
     }
+        private void Auth() //перенес выше ближе к лоадсекрет, как вспомогательный метод, а не под атрибуты
+    {
+        var (username, password) = LoadSecrets();
+        if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(password))
+            throw new Exception("Логин и пароль не заданы");
+        driver.Navigate().GoToUrl(StaffUrl);
+        driver.FindElement(By.Id("Username")).SendKeys(username);
+        driver.FindElement(By.Id("Password")).SendKeys(password);
+        driver.FindElement(By.Name("button")).Click();
+    }
+    private void NewsWaiter() // выделил отдельно, логика следующая: если редирект после после входа меняется на другую страницу, просто меняем этот код и все
+    {
+        wait.Until(ExpectedConditions.UrlContains("/news"));
+    }
+
     [SetUp]
     public void Setup()
     {
-        _driver = new ChromeDriver();
-        _driver.Manage().Timeouts().ImplicitWait = TimeSpan.FromSeconds(5);
-        _wait = new WebDriverWait(_driver, TimeSpan.FromSeconds(7));
+        driver = new ChromeDriver();
+        driver.Manage().Timeouts().ImplicitWait = TimeSpan.FromSeconds(3);
+        wait = new WebDriverWait(driver, TimeSpan.FromSeconds(5));
     }
 
     [TearDown]
     public void TearDown()
     {
-        _driver?.Quit();
-        _driver?.Dispose();
-    }
-
-    private void Authorize()
-    {
-        var (username, password) = LoadSecrets();
-        if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(password))
-            throw new Exception("Логин и пароль не заданы");
-        _driver.Navigate().GoToUrl(BaseUrl);
-        _driver.FindElement(By.Id("Username")).SendKeys(username);
-        _driver.FindElement(By.Id("Password")).SendKeys(password);
-        _driver.FindElement(By.Name("button")).Click();
+        driver?.Quit();
+        driver?.Dispose();
     }
 
     [Test]
-    public void Auth()
+    public void Login()
     {
-        Authorize();
-        _wait.Until(ExpectedConditions.UrlContains("/news"));
-        var cookies = _driver.Manage().Cookies.AllCookies; // логика такая, что редирект может поменяться, а вот куки точно будут передаваться, но редирект я тоже оставил
+        Auth();
+        NewsWaiter();
+        var cookies = driver.Manage().Cookies.AllCookies; // исходил из логики, что редирект может поменяться, а вот куки точно будут передаваться, но редирект я тоже оставил
         foreach (var c in cookies)
         {
             Console.WriteLine($"{c.Name} = {c.Value}");
@@ -58,7 +61,57 @@ public class Tests
         var hasSession = cookies.Any(c =>
             c.Name == "GCloud.Staff.Session" && !string.IsNullOrEmpty(c.Value)
         );
-        Console.WriteLine("Полученные куки: " + hasSession);
+        Console.WriteLine("Полученные куки: " + hasSession); //проверял как работает
+        
+        Assert.That(driver.Url, Does.Contain("/news"), "После авторизации не произошёл редирект на /news");
         Assert.That(hasSession, "Куки не установились");
     }
+    [Test]
+    public void Logout()
+    {
+        Auth();
+        NewsWaiter(); 
+        var sidebarMenuButton = wait.Until(ExpectedConditions.ElementToBeClickable(
+            By.CssSelector("[data-tid='SidebarMenuButton']")));
+        sidebarMenuButton.Click();
+        var logoutButton = wait.Until(ExpectedConditions.ElementToBeClickable(
+            By.CssSelector("[data-tid='LogoutButton']")));
+        logoutButton.Click();
+        wait.Until(ExpectedConditions.UrlContains("/Account/Logout"));
+        Assert.That(driver.Url, Does.Contain("/Account/Logout"), "После выхода не произошёл редирект на /Account/Logout");
+        
+    }
+    
+    [Test]
+    public void SearchEmployee()
+    {
+        driver.Manage().Window.Maximize(); 
+
+        // при открытии ChromeDriver без указания размера окна SearchBar прячется за data-tid="Services"
+        // но обычном браузере SearchBar всегда доступен при любом разрешении
+        // поэтому для данного теста использовал Maximize, хотя, конечно можно было кликнуть сначала на Services
+        // вот так:
+        // var servicesButton = wait.Until(ExpectedConditions.ElementToBeClickable(
+        //     By.CssSelector("[data-tid='Services']")));
+        // servicesButton.Click();
+
+        Auth();
+        NewsWaiter();
+        
+
+        var searchBar = wait.Until(ExpectedConditions.ElementToBeClickable(
+            By.CssSelector("[data-tid='SearchBar']")));
+        searchBar.Click();
+        
+        var searchInput = wait.Until(ExpectedConditions.ElementExists(
+            By.CssSelector("[data-tid='SearchBar'] input")));
+        var (username, _) = LoadSecrets();
+    searchInput.SendKeys(username); // ну, этот точно есть
+        
+        var suggestion = wait.Until(ExpectedConditions.ElementIsVisible(
+            By.CssSelector("[data-tid='ComboBoxMenu__item']")));
+        Assert.That(suggestion.Displayed, Is.True,
+            "После ввода не появилась подсказка с сотрудником");
+    }
+    
 }
